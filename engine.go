@@ -109,11 +109,11 @@ func (e *StockfishEngine) readLoop() {
 		if strings.HasPrefix(line, "bestmove") {
 			parts := strings.Fields(line)
 			if len(parts) >= 2 {
-				// push move
+				// push move lol
 				select {
 				case e.bestMove <- parts[1]:
 				default:
-					// full channel
+					// full channel lol
 				}
 			}
 		}
@@ -131,8 +131,14 @@ func (e *StockfishEngine) sendCommand(cmd string) {
 
 // waitfor removed
 
-// get best move
-func (e *StockfishEngine) GetBestMove(fen string) (string, error) {
+// get best move — cancelCh lets callers abort if game stops or user undoes lol
+func (e *StockfishEngine) GetBestMove(fen string, cancelCh <-chan struct{}) (string, error) {
+	// drain stale results before sending new position
+	select {
+	case <-e.bestMove:
+	default:
+	}
+
 	// set fen lol
 	e.sendCommand("position fen " + fen)
 
@@ -140,12 +146,21 @@ func (e *StockfishEngine) GetBestMove(fen string) (string, error) {
 	goCmd := fmt.Sprintf("go movetime %d depth %d", e.movetime, e.depth)
 	e.sendCommand(goCmd)
 
-	// wait for result
+	// wait for result — bail out if cancelled or engine dies lol
 	select {
 	case move := <-e.bestMove:
 		return move, nil
 	case <-e.done:
 		return "", fmt.Errorf("rock brain die before answering")
+	case <-cancelCh:
+		// tell engine to stop thinking so we don't get stale bestmove later
+		e.sendCommand("stop")
+		// drain the move that stop will produce
+		select {
+		case <-e.bestMove:
+		case <-e.done:
+		}
+		return "", fmt.Errorf("cancelled")
 	}
 }
 

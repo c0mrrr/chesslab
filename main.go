@@ -105,7 +105,13 @@ type ChessApp struct {
 
 	bgSquares     [64]*boardSquare
 	pieceImgs     [64]*canvas.Image
-	flyImg        *canvas.Image
+	flyImg         *canvas.Image
+	dragImg           *canvas.Image
+	draggedSq         chess.Square
+	lastDragAbsPos    fyne.Position
+	dragStartOutline  *canvas.Rectangle
+	dragTargetOutline *canvas.Rectangle
+	lastMoveWasDrag   bool
 	deadWhiteImgs [16]*canvas.Image
 	deadBlackImgs [16]*canvas.Image
 
@@ -178,6 +184,14 @@ func (s *boardSquare) CreateRenderer() fyne.WidgetRenderer {
 
 func (s *boardSquare) Tapped(e *fyne.PointEvent) {
 	s.ca.handleSquareTapped(s.sq)
+}
+
+func (s *boardSquare) Dragged(e *fyne.DragEvent) {
+	s.ca.handleSquareDragged(s.sq, e)
+}
+
+func (s *boardSquare) DragEnd() {
+	s.ca.handleSquareDragEnd(s.sq)
 }
 
 type boardWrapper struct {
@@ -371,15 +385,23 @@ func (ca *ChessApp) handleSquareTapped(sq chess.Square) {
 	if !ca.running.Load() {
 		return
 	}
+	
+	ca.mu.Lock()
 	pos := ca.game.Position()
 	isWhiteTurn := pos.Turn() == chess.White
+	ca.mu.Unlock()
+	
 	if (isWhiteTurn && !ca.lastWIsHuman) || (!isWhiteTurn && !ca.lastBIsHuman) {
 		return
 	}
 
 	if ca.selectedSq == chess.NoSquare {
-		p := pos.Board().Piece(sq)
-		if p != chess.NoPiece && p.Color() == pos.Turn() {
+		ca.mu.Lock()
+		p := ca.game.Position().Board().Piece(sq)
+		turn := ca.game.Position().Turn()
+		ca.mu.Unlock()
+		
+		if p != chess.NoPiece && p.Color() == turn {
 			ca.selectedSq = sq
 			ca.highlightSquare(sq)
 			if ca.assistantActive.Load() {
@@ -393,7 +415,10 @@ func (ca *ChessApp) handleSquareTapped(sq chess.Square) {
 			return
 		}
 
+		ca.mu.Lock()
 		validMoves := ca.game.ValidMoves()
+		ca.mu.Unlock()
+		
 		var promoMoves []*chess.Move
 		var chosenMove *chess.Move
 		for _, m := range validMoves {
@@ -417,13 +442,18 @@ func (ca *ChessApp) handleSquareTapped(sq chess.Square) {
 		if chosenMove != nil {
 			ca.clearHighlight()
 			ca.selectedSq = chess.NoSquare
+			ca.lastMoveWasDrag = false
 			select {
 			case ca.humanMoveCh <- chosenMove:
 			default:
 			}
 		} else {
-			p := pos.Board().Piece(sq)
-			if p != chess.NoPiece && p.Color() == pos.Turn() {
+			ca.mu.Lock()
+			p := ca.game.Position().Board().Piece(sq)
+			turn := ca.game.Position().Turn()
+			ca.mu.Unlock()
+			
+			if p != chess.NoPiece && p.Color() == turn {
 				ca.clearHighlight()
 				ca.selectedSq = sq
 				ca.highlightSquare(sq)
@@ -435,6 +465,172 @@ func (ca *ChessApp) handleSquareTapped(sq chess.Square) {
 				ca.selectedSq = chess.NoSquare
 			}
 		}
+	}
+}
+
+func (ca *ChessApp) handleSquareDragged(sq chess.Square, e *fyne.DragEvent) {
+	if !ca.running.Load() {
+		return
+	}
+	
+	// If dragging just started
+	if ca.draggedSq == chess.NoSquare {
+		ca.mu.Lock()
+		pos := ca.game.Position()
+		isWhiteTurn := pos.Turn() == chess.White
+		ca.mu.Unlock()
+		
+		if (isWhiteTurn && !ca.lastWIsHuman) || (!isWhiteTurn && !ca.lastBIsHuman) {
+			return
+		}
+		
+		ca.mu.Lock()
+		p := ca.game.Position().Board().Piece(sq)
+		turn := ca.game.Position().Turn()
+		ca.mu.Unlock()
+		
+		if p != chess.NoPiece && p.Color() == turn {
+			ca.draggedSq = sq
+			ca.selectedSq = sq
+			ca.highlightSquare(sq)
+			if ca.assistantActive.Load() {
+				ca.showMoveHints(sq)
+			}
+			
+			img := ca.pieceImgs[sq]
+			if img != nil && img.Resource != nil {
+				ca.dragImg.Resource = img.Resource
+				ca.dragImg.Resize(fyne.NewSize(ca.currentSqSize, ca.currentSqSize))
+				ca.dragImg.Move(fyne.NewPos(e.AbsolutePosition.X-ca.boardAbsPos.X-ca.boardOffsetX-ca.currentSqSize/2, e.AbsolutePosition.Y-ca.boardAbsPos.Y-ca.boardOffsetY-ca.currentSqSize/2))
+				ca.dragImg.Show()
+				img.Hide()
+				ca.dragImg.Refresh()
+				img.Refresh()
+				
+				sRow := 7 - int(sq/8)
+				sCol := int(sq%8)
+				if ca.boardFlipped {
+					sRow = 7 - sRow
+					sCol = 7 - sCol
+				}
+				ca.dragStartOutline.Move(fyne.NewPos(ca.boardOffsetX+float32(sCol)*ca.currentSqSize, ca.boardOffsetY+float32(sRow)*ca.currentSqSize))
+				ca.dragStartOutline.Resize(fyne.NewSize(ca.currentSqSize, ca.currentSqSize))
+				ca.dragStartOutline.Show()
+				ca.dragStartOutline.Refresh()
+			}
+		}
+	}
+	
+	if ca.draggedSq != chess.NoSquare {
+		ca.lastDragAbsPos = e.AbsolutePosition
+		ca.dragImg.Move(fyne.NewPos(ca.lastDragAbsPos.X-ca.boardAbsPos.X-ca.boardOffsetX-ca.currentSqSize/2, ca.lastDragAbsPos.Y-ca.boardAbsPos.Y-ca.boardOffsetY-ca.currentSqSize/2))
+		ca.dragImg.Refresh()
+		
+		col := int((ca.lastDragAbsPos.X - ca.boardAbsPos.X - ca.boardOffsetX) / ca.currentSqSize)
+		row := int((ca.lastDragAbsPos.Y - ca.boardAbsPos.Y - ca.boardOffsetY) / ca.currentSqSize)
+		
+		if ca.boardFlipped {
+			col = 7 - col
+			row = 7 - row
+		}
+		
+		targetSq := chess.NoSquare
+		if col >= 0 && col < 8 && row >= 0 && row < 8 {
+			targetSq = chess.Square((7-row)*8 + col)
+		}
+		
+		if targetSq != chess.NoSquare {
+			tRow := 7 - int(targetSq/8)
+			tCol := int(targetSq%8)
+			if ca.boardFlipped {
+				tRow = 7 - tRow
+				tCol = 7 - tCol
+			}
+			ca.dragTargetOutline.Move(fyne.NewPos(ca.boardOffsetX+float32(tCol)*ca.currentSqSize, ca.boardOffsetY+float32(tRow)*ca.currentSqSize))
+			ca.dragTargetOutline.Resize(fyne.NewSize(ca.currentSqSize, ca.currentSqSize))
+			ca.dragTargetOutline.Show()
+			ca.dragTargetOutline.Refresh()
+		} else {
+			ca.dragTargetOutline.Hide()
+			ca.dragTargetOutline.Refresh()
+		}
+	}
+}
+
+func (ca *ChessApp) handleSquareDragEnd(sq chess.Square) {
+	if ca.draggedSq == chess.NoSquare {
+		return
+	}
+	
+	ca.dragImg.Hide()
+	ca.dragImg.Refresh()
+	ca.dragStartOutline.Hide()
+	ca.dragStartOutline.Refresh()
+	ca.dragTargetOutline.Hide()
+	ca.dragTargetOutline.Refresh()
+	
+	if img := ca.pieceImgs[ca.draggedSq]; img != nil {
+		img.Show()
+		img.Refresh()
+	}
+	
+	col := int((ca.lastDragAbsPos.X - ca.boardAbsPos.X - ca.boardOffsetX) / ca.currentSqSize)
+	row := int((ca.lastDragAbsPos.Y - ca.boardAbsPos.Y - ca.boardOffsetY) / ca.currentSqSize)
+	
+	if ca.boardFlipped {
+		col = 7 - col
+		row = 7 - row
+	}
+	
+	targetSq := chess.NoSquare
+	if col >= 0 && col < 8 && row >= 0 && row < 8 {
+		targetSq = chess.Square((7-row)*8 + col)
+	}
+	
+	fromSq := ca.draggedSq
+	ca.draggedSq = chess.NoSquare
+	
+	if targetSq == chess.NoSquare || targetSq == fromSq {
+		ca.clearHighlight()
+		ca.selectedSq = chess.NoSquare
+		return
+	}
+
+	ca.mu.Lock()
+	validMoves := ca.game.ValidMoves()
+	ca.mu.Unlock()
+	
+	var promoMoves []*chess.Move
+	var chosenMove *chess.Move
+	for _, m := range validMoves {
+		if m.S1() == fromSq && m.S2() == targetSq {
+			if m.Promo() != chess.NoPieceType {
+				promoMoves = append(promoMoves, m)
+			} else {
+				chosenMove = m
+				break
+			}
+		}
+	}
+
+	if len(promoMoves) > 0 {
+		ca.showPromotionPopup(promoMoves)
+		ca.clearHighlight()
+		ca.selectedSq = chess.NoSquare
+		return
+	}
+
+	if chosenMove != nil {
+		ca.clearHighlight()
+		ca.selectedSq = chess.NoSquare
+		ca.lastMoveWasDrag = true
+		select {
+		case ca.humanMoveCh <- chosenMove:
+		default:
+		}
+	} else {
+		ca.clearHighlight()
+		ca.selectedSq = chess.NoSquare
 	}
 }
 
@@ -996,6 +1192,23 @@ func (ca *ChessApp) buildBoard() {
 	ca.flyImg.FillMode = canvas.ImageFillContain
 	ca.flyImg.Hide()
 	objs = append(objs, ca.flyImg)
+	
+	ca.dragImg = canvas.NewImageFromResource(nil)
+	ca.dragImg.FillMode = canvas.ImageFillContain
+	ca.dragImg.Hide()
+	objs = append(objs, ca.dragImg)
+	
+	ca.dragStartOutline = canvas.NewRectangle(color.Transparent)
+	ca.dragStartOutline.StrokeColor = color.NRGBA{R: 255, G: 255, B: 255, A: 200}
+	ca.dragStartOutline.StrokeWidth = 3
+	ca.dragStartOutline.Hide()
+	objs = append(objs, ca.dragStartOutline)
+
+	ca.dragTargetOutline = canvas.NewRectangle(color.Transparent)
+	ca.dragTargetOutline.StrokeColor = color.NRGBA{R: 200, G: 200, B: 200, A: 150}
+	ca.dragTargetOutline.StrokeWidth = 3
+	ca.dragTargetOutline.Hide()
+	objs = append(objs, ca.dragTargetOutline)
 
 	ca.helpRect1 = canvas.NewRectangle(color.NRGBA{0, 0, 0, 0})
 	ca.helpRect1.StrokeColor = color.NRGBA{R: 255, G: 0, B: 0, A: 200}
@@ -1044,7 +1257,11 @@ func (ca *ChessApp) buildBoard() {
 }
 
 func (ca *ChessApp) refreshBoard() {
-	board := ca.game.Position().Board()
+	ca.mu.Lock()
+	pos := ca.game.Position()
+	ca.mu.Unlock()
+	
+	board := pos.Board()
 	for sq := 0; sq < 64; sq++ {
 		piece := board.Piece(chess.Square(sq))
 		res := getPieceResource(piece)
@@ -1675,8 +1892,11 @@ func (ca *ChessApp) gameLoop() {
 				engine = ca.blackEngine
 			}
 
-			moveStr, err := engine.GetBestMove(fen)
+			moveStr, err := engine.GetBestMove(fen, ca.stopCh)
 			if err != nil {
+				if err.Error() == "cancelled" {
+					return
+				}
 				errMsg := fmt.Sprintf("Rock brain died before answering: %v. (Invalid FEN?)", err)
 				ca.statusLabel.SetText(errMsg)
 				ca.copyLogBtn.Show()
@@ -1690,25 +1910,28 @@ func (ca *ChessApp) gameLoop() {
 			}
 		}
 
-		if ca.animate.Load() {
+		if ca.animate.Load() && !ca.lastMoveWasDrag {
 			ca.animateMove(m.S1(), m.S2())
 		}
+		ca.lastMoveWasDrag = false
 
 		ca.mu.Lock()
 		ca.helpActive = false
 		ca.assistantThreats = nil
 		ca.assistantKingCheck = false
+		ca.history = append(ca.history, GameSnapshot{fen: fen, lastMove: m})
+		err := ca.game.Move(m)
+		ca.mu.Unlock()
+		
 		if ca.boardContainer != nil {
 			ca.boardContainer.Refresh()
 		}
-		ca.history = append(ca.history, GameSnapshot{fen: fen, lastMove: m})
-		if err := ca.game.Move(m); err != nil {
+
+		if err != nil {
 			ca.statusLabel.SetText(fmt.Sprintf("Move error: %v", err))
-			ca.mu.Unlock()
 			return
 		}
 		ca.refreshBoard()
-		ca.mu.Unlock()
 
 		if !ca.speedrun.Load() && ((!isWhiteTurn && !ca.lastBIsHuman) || (isWhiteTurn && !ca.lastWIsHuman)) {
 			delay := time.Duration(200+rand.Intn(600)) * time.Millisecond
@@ -1759,7 +1982,6 @@ func (ca *ChessApp) showPromotionPopup(promoMoves []*chess.Move) {
 
 func (ca *ChessApp) showMoveHints(sq chess.Square) {
 	ca.mu.Lock()
-	defer ca.mu.Unlock()
 
 	validMoves := ca.game.ValidMoves()
 	safeHints := make(map[chess.Square]bool)
@@ -1789,6 +2011,8 @@ func (ca *ChessApp) showMoveHints(sq chess.Square) {
 
 	ca.safeHints = safeHints
 	ca.riskyHints = riskyHints
+	ca.mu.Unlock()
+	
 	if ca.boardContainer != nil {
 		ca.boardContainer.Refresh()
 	}
@@ -1914,6 +2138,7 @@ func (ca *ChessApp) showHelpVisualization() {
 	ca.helpBtn.SetText("Thinking...")
 	ca.helpBtn.Disable()
 	fen := ca.game.Position().String()
+	stopCh := ca.stopCh
 	ca.mu.Unlock()
 
 	go func() {
@@ -1928,31 +2153,35 @@ func (ca *ChessApp) showHelpVisualization() {
 		}
 		defer helpEng.Close()
 
-		moveStr, err := helpEng.GetBestMove(fen)
-		if err == nil && moveStr != "(none)" {
-			m, parseErr := ca.parseUCIMove(moveStr)
-			if parseErr == nil && m != nil {
+		moveStr, err := helpEng.GetBestMove(fen, stopCh)
+		if err != nil {
+			return
+		}
+		if moveStr == "(none)" {
+			return
+		}
+		m, parseErr := ca.parseUCIMove(moveStr)
+		if parseErr == nil && m != nil {
+			ca.mu.Lock()
+			ca.helpFromSq = m.S1()
+			ca.helpToSq = m.S2()
+			ca.helpActive = true
+			if ca.boardContainer != nil {
+				ca.boardContainer.Refresh()
+			}
+			ca.mu.Unlock()
+
+			go func() {
+				time.Sleep(3 * time.Second)
 				ca.mu.Lock()
-				ca.helpFromSq = m.S1()
-				ca.helpToSq = m.S2()
-				ca.helpActive = true
-				if ca.boardContainer != nil {
-					ca.boardContainer.Refresh()
+				if !ca.autoHelpActive.Load() {
+					ca.helpActive = false
+					if ca.boardContainer != nil {
+						ca.boardContainer.Refresh()
+					}
 				}
 				ca.mu.Unlock()
-
-				go func() {
-					time.Sleep(3 * time.Second)
-					ca.mu.Lock()
-					if !ca.autoHelpActive.Load() {
-						ca.helpActive = false
-						if ca.boardContainer != nil {
-							ca.boardContainer.Refresh()
-						}
-					}
-					ca.mu.Unlock()
-				}()
-			}
+			}()
 		}
 	}()
 }
@@ -1972,35 +2201,46 @@ func (ca *ChessApp) autoHelpLoop() {
 		isWhiteTurn := ca.game.Position().Turn() == chess.White
 		humanTurn := (isWhiteTurn && ca.lastWIsHuman) || (!isWhiteTurn && ca.lastBIsHuman)
 		fen := ca.game.Position().String()
+		stopCh := ca.stopCh
 		ca.mu.Unlock()
 
 		if humanTurn {
 			if fen != lastFen {
-				moveStr, err := helpEng.GetBestMove(fen)
-				if err == nil && moveStr != "(none)" {
+				moveStr, err := helpEng.GetBestMove(fen, stopCh)
+				if err != nil {
+					if err.Error() == "cancelled" {
+						return
+					}
+					time.Sleep(500 * time.Millisecond)
+					continue
+				}
+				if moveStr != "(none)" {
 					m, parseErr := ca.parseUCIMove(moveStr)
 					if parseErr == nil && m != nil {
 						ca.mu.Lock()
 						ca.helpFromSq = m.S1()
 						ca.helpToSq = m.S2()
 						ca.helpActive = true
+						ca.mu.Unlock()
+						
 						if ca.boardContainer != nil {
 							ca.boardContainer.Refresh()
 						}
-						ca.mu.Unlock()
 						lastFen = fen
 					}
 				}
 			}
 		} else {
 			ca.mu.Lock()
+			wasActive := ca.helpActive
 			if ca.helpActive {
 				ca.helpActive = false
-				if ca.boardContainer != nil {
-					ca.boardContainer.Refresh()
-				}
 			}
 			ca.mu.Unlock()
+			
+			if wasActive && ca.boardContainer != nil {
+				ca.boardContainer.Refresh()
+			}
 			lastFen = "" // reset so it calculates immediately when it's our turn again
 		}
 

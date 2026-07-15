@@ -78,6 +78,7 @@ func (ca *ChessApp) assistantLoop() {
 		ca.assistantThreats = threats
 		ca.assistantKingCheck = kingCheck
 		ca.assistantKingSq = kingSq
+		ca.mu.Unlock()
 
 		if len(threats) > 0 || kingCheck {
 			var msg string
@@ -106,7 +107,6 @@ func (ca *ChessApp) assistantLoop() {
 		if ca.boardContainer != nil {
 			ca.boardContainer.Refresh()
 		}
-		ca.mu.Unlock()
 	}
 
 		time.Sleep(2 * time.Second)
