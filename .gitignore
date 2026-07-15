@@ -1,0 +1,13 @@
+# Compiled binary
+chesslab
+
+# IDE configurations
+.vscode/
+.idea/
+
+# Logs
+*.log
+crash.log
+
+# System files
+.DS_Store
