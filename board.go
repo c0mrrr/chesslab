@@ -1,24 +1,21 @@
 package main
 
-// Caveman brain remember where all rock-pieces sit on flat stone board.
-// This file hold board wisdom — what piece live where, what color square be.
+// board state
 
 import (
-	"github.com/notnil/chess"
 	"fyne.io/fyne/v2"
+	"github.com/notnil/chess"
 )
 
-// Caveman paint board with green grass and pale sand colors.
-// Light square like dry bone, dark square like fresh leaf.
+// colors
 var (
-	lightSquareColor = [3]uint8{238, 238, 210} // #EEEED2 — bone white
-	darkSquareColor  = [3]uint8{118, 150, 86}  // #769656 — leaf green
+	lightSquareColor = [3]uint8{238, 238, 210} // bone white
+	darkSquareColor  = [3]uint8{118, 150, 86}  // leaf green
 )
 
-// Caveman map each chess tribe member to their cave painting (SVG icon).
-// This how caveman know which rock picture to show on board.
+// get piece images lol
 func getPieceResource(p chess.Piece) fyne.Resource {
-	// Caveman look at piece and find matching cave painting.
+	// match pic
 	switch p {
 	case chess.WhiteKing:
 		return resourceKingWSvg
@@ -45,13 +42,12 @@ func getPieceResource(p chess.Piece) fyne.Resource {
 	case chess.BlackPawn:
 		return resourcePawnBSvg
 	default:
-		// Caveman see empty square. No rock here. Return nothing.
+		// empty lol
 		return nil
 	}
 }
 
-// Caveman check if square dark or light. Even caveman know checkerboard pattern.
-// Row plus column — if sum even, square light like sun. If odd, square dark like shadow.
+// check square color idk this code sucks but ok.
 func isLightSquare(row, col int) bool {
 	return (row+col)%2 == 0
 }

@@ -89,19 +89,19 @@ type ChessApp struct {
 	helpArrow1           *canvas.Line
 	helpArrow2           *canvas.Line
 
-	assistantThreats     map[chess.Square]bool
-	assistantKingCheck   bool
+	assistantThreats   map[chess.Square]bool
+	assistantKingCheck bool
 
-	hintRects [64]*canvas.Rectangle
-	safeHints map[chess.Square]bool
-	riskyHints map[chess.Square]bool
-	assistantKingSq      chess.Square
-	assistantRects       [64]*canvas.Rectangle
-	currentSqSize    float32
-	boardOffsetX     float32
-	boardOffsetY     float32
-	boardAbsPos      fyne.Position
-	boardFlipped     bool
+	hintRects       [64]*canvas.Rectangle
+	safeHints       map[chess.Square]bool
+	riskyHints      map[chess.Square]bool
+	assistantKingSq chess.Square
+	assistantRects  [64]*canvas.Rectangle
+	currentSqSize   float32
+	boardOffsetX    float32
+	boardOffsetY    float32
+	boardAbsPos     fyne.Position
+	boardFlipped    bool
 
 	bgSquares     [64]*boardSquare
 	pieceImgs     [64]*canvas.Image
@@ -109,27 +109,27 @@ type ChessApp struct {
 	deadWhiteImgs [16]*canvas.Image
 	deadBlackImgs [16]*canvas.Image
 
-	topmostOverlay *fyne.Container
+	topmostOverlay          *fyne.Container
 	loadingOverlayContainer *fyne.Container
-	dragCheat      *canvas.Image
-	cheatPopup     *widget.PopUp
-	cheatsToggle   *widget.Button
-	cheatsPanel    *fyne.Container
-	cheatBtn       *widget.Button
-	copyLogBtn     *widget.Button
-	reverseBtn     *widget.Button
-	passBtn        *widget.Button
-	helpBtn        *RightClickButton
-	assistantCheck *widget.Check
+	dragCheat               *canvas.Image
+	cheatPopup              *widget.PopUp
+	cheatsToggle            *widget.Button
+	cheatsPanel             *fyne.Container
+	cheatBtn                *widget.Button
+	copyLogBtn              *widget.Button
+	reverseBtn              *widget.Button
+	passBtn                 *widget.Button
+	helpBtn                 *RightClickButton
+	assistantCheck          *widget.Check
 
 	selectedSq  chess.Square
 	humanMoveCh chan *chess.Move
 
-	statusLabel *widget.Label
-	moveLabel   *widget.Label
-	warnLabel   *canvas.Text
+	statusLabel   *widget.Label
+	moveLabel     *widget.Label
+	warnLabel     *canvas.Text
 	warnContainer *fyne.Container
-	turnWidget  *TurnIndicator
+	turnWidget    *TurnIndicator
 
 	whiteEngine     *StockfishEngine
 	blackEngine     *StockfishEngine
@@ -137,26 +137,24 @@ type ChessApp struct {
 	whiteLog        *terminalWidget
 	blackLog        *terminalWidget
 
-	lastWIsHuman bool
-	lastBIsHuman bool
-	lastWSkill   int
-	lastBSkill   int
-	speedrun     atomic.Bool
-	animate      atomic.Bool
-	autoLoop     atomic.Bool
-	autoHelpActive     atomic.Bool
-	autoHelpBtnFlash   atomic.Bool
-	lastHelpClick      time.Time
-	assistantActive atomic.Bool
-	running      atomic.Bool
-	stopCh       chan struct{}
-	mu           sync.Mutex
-	history      []GameSnapshot
+	lastWIsHuman     bool
+	lastBIsHuman     bool
+	lastWSkill       int
+	lastBSkill       int
+	speedrun         atomic.Bool
+	animate          atomic.Bool
+	autoLoop         atomic.Bool
+	autoHelpActive   atomic.Bool
+	autoHelpBtnFlash atomic.Bool
+	lastHelpClick    time.Time
+	assistantActive  atomic.Bool
+	running          atomic.Bool
+	stopCh           chan struct{}
+	mu               sync.Mutex
+	history          []GameSnapshot
 }
 
-// ─────────────────────────────────────────────
-//  BOARD CUSTOM WIDGETS & LAYOUT
-// ─────────────────────────────────────────────
+// board custom widgets & layout lol
 
 type boardSquare struct {
 	widget.BaseWidget
@@ -244,9 +242,9 @@ func (l *boardLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
 
 	if l.ca.helpActive && l.ca.helpRect1 != nil {
 		fromRow := 7 - int(l.ca.helpFromSq/8)
-		fromCol := int(l.ca.helpFromSq%8)
+		fromCol := int(l.ca.helpFromSq % 8)
 		toRow := 7 - int(l.ca.helpToSq/8)
-		toCol := int(l.ca.helpToSq%8)
+		toCol := int(l.ca.helpToSq % 8)
 		if l.ca.boardFlipped {
 			fromRow = 7 - fromRow
 			fromCol = 7 - fromCol
@@ -295,11 +293,13 @@ func (l *boardLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
 
 	for i := 0; i < 64; i++ {
 		rect := l.ca.assistantRects[i]
-		if rect == nil { continue }
-		
+		if rect == nil {
+			continue
+		}
+
 		isActiveThreat := l.ca.assistantThreats != nil && l.ca.assistantThreats[chess.Square(i)]
 		isKingCheck := l.ca.assistantKingCheck && chess.Square(i) == l.ca.assistantKingSq
-		
+
 		if l.ca.assistantActive.Load() && (isActiveThreat || isKingCheck) {
 			row := 7 - (i / 8)
 			col := i % 8
@@ -327,11 +327,13 @@ func (l *boardLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
 	}
 	for i := 0; i < 64; i++ {
 		rect := l.ca.hintRects[i]
-		if rect == nil { continue }
-		
+		if rect == nil {
+			continue
+		}
+
 		isSafe := l.ca.safeHints != nil && l.ca.safeHints[chess.Square(i)]
 		isRisky := l.ca.riskyHints != nil && l.ca.riskyHints[chess.Square(i)]
-		
+
 		if l.ca.assistantActive.Load() && (isSafe || isRisky) {
 			row := 7 - (i / 8)
 			col := i % 8
@@ -363,9 +365,7 @@ func (l *boardLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
 	return fyne.NewSize(320, 320)
 }
 
-// ─────────────────────────────────────────────
-//  HUMAN CLICK-TO-MOVE
-// ─────────────────────────────────────────────
+// meatbag click to move
 
 func (ca *ChessApp) handleSquareTapped(sq chess.Square) {
 	if !ca.running.Load() {
@@ -463,9 +463,7 @@ func (ca *ChessApp) clearHighlight() {
 	}
 }
 
-// ─────────────────────────────────────────────
-//  CHEAT DRAG & DROP
-// ─────────────────────────────────────────────
+// Cheats in case you suck at chess
 
 type CheatPieceWidget struct {
 	widget.BaseWidget
@@ -494,13 +492,12 @@ func (c *CheatPieceWidget) Dragged(e *fyne.DragEvent) {
 		c.ca.dragCheat.Resize(fyne.NewSize(c.ca.currentSqSize, c.ca.currentSqSize))
 		c.ca.topmostOverlay.Add(c.ca.dragCheat)
 	}
-	// Center the image on cursor
+	// center svg on cursor
 	offset := c.ca.currentSqSize / 2
 	c.ca.dragCheat.Move(fyne.NewPos(e.AbsolutePosition.X-offset, e.AbsolutePosition.Y-offset))
 	c.ca.dragCheat.Show()
 	c.ca.topmostOverlay.Refresh()
 }
-
 func (c *CheatPieceWidget) DragEnd() {
 	if c.ca.dragCheat != nil {
 		pos := c.ca.dragCheat.Position()
@@ -508,7 +505,7 @@ func (c *CheatPieceWidget) DragEnd() {
 		c.ca.topmostOverlay.RemoveAll()
 		c.ca.dragCheat = nil
 
-		// Adjust from top-left to center of dropped piece
+		// adjust top left to center of dropped piece
 		centerPos := fyne.NewPos(pos.X+c.ca.currentSqSize/2, pos.Y+c.ca.currentSqSize/2)
 		c.ca.handleCheatDrop(centerPos, c.piece)
 	}
@@ -542,7 +539,7 @@ func (ca *ChessApp) handleCheatDrop(pos fyne.Position, p chess.Piece) {
 	by := pos.Y - ca.boardAbsPos.Y - ca.boardOffsetY
 
 	if bx < 0 || by < 0 || bx > ca.currentSqSize*8 || by > ca.currentSqSize*8 {
-		return // Cancel movement
+		return // cancel movement lol
 	}
 
 	col := int(bx / ca.currentSqSize)
@@ -555,12 +552,12 @@ func (ca *ChessApp) handleCheatDrop(pos fyne.Position, p chess.Piece) {
 
 func (ca *ChessApp) applyCheatPiece(sq chess.Square, p chess.Piece) {
 	ca.mu.Lock()
-	defer ca.mu.Unlock()
 
 	pos := ca.game.Position()
 	sqMap := pos.Board().SquareMap()
 	if sqMap[sq] != chess.NoPiece {
-		return // Invalid position
+		ca.mu.Unlock()
+		return // invalid pos
 	}
 
 	sqMap[sq] = p
@@ -571,7 +568,7 @@ func (ca *ChessApp) applyCheatPiece(sq chess.Square, p chess.Piece) {
 	if len(parts) >= 1 {
 		parts[0] = newBoard.String()
 	}
-	// Sanitize FEN: clear castling and en passant to prevent Stockfish crashes
+	// sanitize fen: clear castling + en passant to prevent stockfish's brain from melting lol
 	if len(parts) >= 3 {
 		parts[2] = "-"
 	}
@@ -584,22 +581,23 @@ func (ca *ChessApp) applyCheatPiece(sq chess.Square, p chess.Piece) {
 	if err == nil {
 		ca.history = append(ca.history, GameSnapshot{fen: oldFen, lastMove: nil})
 		ca.game = chess.NewGame(fenFunc)
+		ca.mu.Unlock()
 		ca.refreshBoard()
+	} else {
+		ca.mu.Unlock()
 	}
 }
 
-// ─────────────────────────────────────────────
-//  TERMINAL WIDGET
-// ─────────────────────────────────────────────
-
+// terminal widget lol
 type terminalWidget struct {
 	linesText []*canvas.Text
 	bg        *canvas.Rectangle
 	panel     *fyne.Container
 	lines     []string
 	maxLines  int
-	mu        sync.Mutex
-	dirty     atomic.Bool
+	// this rendering logic is absolute trash why did i build it like this
+	mu    sync.Mutex
+	dirty atomic.Bool
 }
 
 func newTerminalWidget() *terminalWidget {
@@ -669,9 +667,7 @@ func (tw *terminalWidget) clear() {
 	tw.dirty.Store(true)
 }
 
-// ─────────────────────────────────────────────
-//  TURN INDICATOR
-// ─────────────────────────────────────────────
+// turn indicator logic
 
 type TurnIndicator struct {
 	whitePawnImg *canvas.Image
@@ -750,9 +746,7 @@ func (ti *TurnIndicator) setTurn(isWhite bool) {
 	sliderAnim.Start()
 }
 
-// ─────────────────────────────────────────────
-//  MAIN
-// ─────────────────────────────────────────────
+// main fuckery
 
 func main() {
 	runtime.GOMAXPROCS(totalCores)
@@ -774,10 +768,13 @@ func main() {
 
 	content := ca.buildUI()
 	w.SetContent(content)
-	w.Resize(fyne.NewSize(1400, 900))
+	w.Resize(fyne.NewSize(1600, 1000))
 	w.CenterOnScreen()
 
-	ca.showNewGameWindow()
+	go func() {
+		time.Sleep(400 * time.Millisecond)
+		ca.showNewGameWindow()
+	}()
 
 	w.ShowAndRun()
 }
@@ -822,8 +819,6 @@ func (ca *ChessApp) buildUI() fyne.CanvasObject {
 		default:
 		}
 	})
-
-	
 
 	ca.copyLogBtn = widget.NewButton("Copy Engine Logs", func() {
 		var b strings.Builder
@@ -886,7 +881,7 @@ func (ca *ChessApp) buildUI() fyne.CanvasObject {
 	}, func() {
 		ca.toggleAutoHelp()
 	})
-	ca.assistantCheck = widget.NewCheck("Chess Assistant", func(checked bool) {
+	ca.assistantCheck = widget.NewCheck("Chess Assist", func(checked bool) {
 		ca.assistantActive.Store(checked)
 		if !checked && ca.warnContainer != nil {
 			ca.warnLabel.Text = ""
@@ -897,12 +892,10 @@ func (ca *ChessApp) buildUI() fyne.CanvasObject {
 	ca.warnLabel = canvas.NewText("", color.NRGBA{0, 0, 0, 255})
 	ca.warnLabel.TextStyle = fyne.TextStyle{Bold: true}
 	ca.warnLabel.Alignment = fyne.TextAlignCenter
-	
+
 	warnBg := canvas.NewRectangle(color.NRGBA{255, 255, 0, 150})
 	ca.warnContainer = container.NewStack(warnBg, container.NewPadded(ca.warnLabel))
 	ca.warnContainer.Hide()
-	
-	
 
 	ca.cheatsPanel = container.NewHBox(
 		ca.cheatBtn, ca.reverseBtn, ca.passBtn, ca.helpBtn,
@@ -948,6 +941,7 @@ func (ca *ChessApp) buildDeadPiecesPanel(isWhite bool) fyne.CanvasObject {
 	label := widget.NewLabelWithStyle(title, fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
 
 	for i := 0; i < 16; i++ {
+		// this hacky state check is literally making me lose my mind ngl
 		img := canvas.NewImageFromResource(nil)
 		img.FillMode = canvas.ImageFillContain
 		img.SetMinSize(fyne.NewSize(30, 30))
@@ -966,8 +960,6 @@ func (ca *ChessApp) buildDeadPiecesPanel(isWhite bool) fyne.CanvasObject {
 	bg.CornerRadius = 8
 	return container.NewStack(bg, container.NewPadded(content))
 }
-
-
 
 func (ca *ChessApp) buildBoard() {
 	ca.boardLayoutObj = &boardLayout{ca: ca}
@@ -1005,13 +997,13 @@ func (ca *ChessApp) buildBoard() {
 	ca.flyImg.Hide()
 	objs = append(objs, ca.flyImg)
 
-	ca.helpRect1 = canvas.NewRectangle(color.NRGBA{0,0,0,0})
+	ca.helpRect1 = canvas.NewRectangle(color.NRGBA{0, 0, 0, 0})
 	ca.helpRect1.StrokeColor = color.NRGBA{R: 255, G: 0, B: 0, A: 200}
 	ca.helpRect1.StrokeWidth = 3
 	ca.helpRect1.Hide()
 	objs = append(objs, ca.helpRect1)
 
-	ca.helpRect2 = canvas.NewRectangle(color.NRGBA{0,0,0,0})
+	ca.helpRect2 = canvas.NewRectangle(color.NRGBA{0, 0, 0, 0})
 	ca.helpRect2.StrokeColor = color.NRGBA{R: 255, G: 0, B: 0, A: 200}
 	ca.helpRect2.StrokeWidth = 3
 	ca.helpRect2.Hide()
@@ -1033,13 +1025,13 @@ func (ca *ChessApp) buildBoard() {
 	objs = append(objs, ca.helpArrow2)
 
 	for i := 0; i < 64; i++ {
-		ca.assistantRects[i] = canvas.NewRectangle(color.NRGBA{0,0,0,0})
+		ca.assistantRects[i] = canvas.NewRectangle(color.NRGBA{0, 0, 0, 0})
 		ca.assistantRects[i].StrokeWidth = 3
 		ca.assistantRects[i].Hide()
 		objs = append(objs, ca.assistantRects[i])
 	}
 	for i := 0; i < 64; i++ {
-		ca.hintRects[i] = canvas.NewRectangle(color.NRGBA{0,0,0,0})
+		ca.hintRects[i] = canvas.NewRectangle(color.NRGBA{0, 0, 0, 0})
 		ca.hintRects[i].StrokeWidth = 3
 		ca.hintRects[i].Hide()
 		objs = append(objs, ca.hintRects[i])
@@ -1133,13 +1125,20 @@ func (ca *ChessApp) animateMove(fromSq, toSq chess.Square) {
 		return
 	}
 
-	var targetImg *canvas.Image
+	movingResource := img.Resource
+
+	// Hide any piece at the target square before animating
 	if toSq != fromSq {
-		targetImg = ca.pieceImgs[toSq]
+		if targetImg := ca.pieceImgs[toSq]; targetImg != nil && targetImg.Resource != nil {
+			targetImg.Resource = nil
+			targetImg.Hide()
+			targetImg.Refresh()
+		}
 	}
 
+	ca.flyImg.Resource = movingResource
+	ca.flyImg.Resize(fyne.NewSize(ca.currentSqSize, ca.currentSqSize))
 	ca.flyImg.Move(img.Position())
-	ca.flyImg.Resource = img.Resource
 	ca.flyImg.Show()
 	ca.flyImg.Refresh()
 
@@ -1152,23 +1151,26 @@ func (ca *ChessApp) animateMove(fromSq, toSq chess.Square) {
 	targetPos := fyne.NewPos(ca.boardOffsetX+toCol*ca.currentSqSize, ca.boardOffsetY+toRow*ca.currentSqSize)
 
 	done := make(chan struct{})
-	anim := canvas.NewPositionAnimation(ca.flyImg.Position(), targetPos, 600*time.Millisecond, func(p fyne.Position) {
+	anim := canvas.NewPositionAnimation(ca.flyImg.Position(), targetPos, 200*time.Millisecond, func(p fyne.Position) {
 		ca.flyImg.Move(p)
 		ca.flyImg.Refresh()
 	})
-	anim.Curve = fyne.AnimationEaseInOut
+	anim.Curve = fyne.AnimationLinear
 	anim.Start()
 
 	go func() {
-		time.Sleep(600 * time.Millisecond)
+		time.Sleep(210 * time.Millisecond)
 		close(done)
 	}()
 	<-done
 
-	if targetImg != nil && targetImg.Resource != nil {
-		targetImg.Resource = nil
-		targetImg.Hide()
-		targetImg.Refresh()
+	// Pre-set destination image BEFORE hiding flyImg to prevent flash
+	destImg := ca.pieceImgs[toSq]
+	if destImg != nil {
+		destImg.Resource = movingResource
+		destImg.Move(targetPos)
+		destImg.Show()
+		destImg.Refresh()
 	}
 
 	ca.flyImg.Hide()
@@ -1176,7 +1178,6 @@ func (ca *ChessApp) animateMove(fromSq, toSq chess.Square) {
 }
 
 func (ca *ChessApp) playReverseAnimation(m *chess.Move, targetFen string) {
-	// Revert to old FEN to get the piece that moved
 	fenFunc, err := chess.FEN(targetFen)
 	if err != nil {
 		return
@@ -1186,6 +1187,8 @@ func (ca *ChessApp) playReverseAnimation(m *chess.Move, targetFen string) {
 	movingPiece := oldBoard.Piece(m.S1())
 	capturedPiece := oldBoard.Piece(m.S2())
 
+	movingResource := getPieceResource(movingPiece)
+
 	fromCol := float32(m.S1() % 8)
 	fromRow := 7 - float32(m.S1()/8)
 	fromPos := fyne.NewPos(ca.boardOffsetX+fromCol*ca.currentSqSize, ca.boardOffsetY+fromRow*ca.currentSqSize)
@@ -1194,37 +1197,45 @@ func (ca *ChessApp) playReverseAnimation(m *chess.Move, targetFen string) {
 	toRow := 7 - float32(m.S2()/8)
 	toPos := fyne.NewPos(ca.boardOffsetX+toCol*ca.currentSqSize, ca.boardOffsetY+toRow*ca.currentSqSize)
 
-	// Currently the piece is at S2 in UI. Hide it.
 	if img := ca.pieceImgs[m.S2()]; img != nil {
 		img.Hide()
 		img.Refresh()
 	}
 
-	// If it was a capture, show the captured piece at S2!
 	if capturedPiece != chess.NoPiece && capturedPiece.Color() != movingPiece.Color() {
 		ca.pieceImgs[m.S2()].Resource = getPieceResource(capturedPiece)
 		ca.pieceImgs[m.S2()].Show()
 		ca.pieceImgs[m.S2()].Refresh()
 	}
 
+	ca.flyImg.Resource = movingResource
+	ca.flyImg.Resize(fyne.NewSize(ca.currentSqSize, ca.currentSqSize))
 	ca.flyImg.Move(toPos)
-	ca.flyImg.Resource = getPieceResource(movingPiece)
 	ca.flyImg.Show()
 	ca.flyImg.Refresh()
 
 	done := make(chan struct{})
-	anim := canvas.NewPositionAnimation(toPos, fromPos, 1*time.Second, func(p fyne.Position) {
+	anim := canvas.NewPositionAnimation(toPos, fromPos, 200*time.Millisecond, func(p fyne.Position) {
 		ca.flyImg.Move(p)
 		ca.flyImg.Refresh()
 	})
-	anim.Curve = fyne.AnimationEaseInOut
+	anim.Curve = fyne.AnimationLinear
 	anim.Start()
 
 	go func() {
-		time.Sleep(1 * time.Second)
+		time.Sleep(210 * time.Millisecond)
 		close(done)
 	}()
 	<-done
+
+	// Pre-set source image before hiding flyImg to prevent flash
+	srcImg := ca.pieceImgs[m.S1()]
+	if srcImg != nil {
+		srcImg.Resource = movingResource
+		srcImg.Move(fromPos)
+		srcImg.Show()
+		srcImg.Refresh()
+	}
 
 	ca.flyImg.Hide()
 	ca.flyImg.Refresh()
@@ -1247,39 +1258,54 @@ func (ca *ChessApp) handleReverse() {
 		g := chess.NewGame(fenFunc)
 		isWhiteTurn := g.Position().Turn() == chess.White
 
-		// Stop popping if we reached human's turn
+		// Stop popping if we reached meatbag's turn lol
 		if (isWhiteTurn && ca.lastWIsHuman) || (!isWhiteTurn && ca.lastBIsHuman) {
 			break
 		}
 	}
 	ca.mu.Unlock()
 
-	// Stop current game loop and engines
 	ca.stopGame()
-	time.Sleep(50 * time.Millisecond) // let routines die
+	time.Sleep(100 * time.Millisecond)
 
+	// Clear all overlays immediately: selection, help hints, assistant threats
 	ca.mu.Lock()
-	// Animate reversely
+	ca.clearHighlight()
+	ca.selectedSq = chess.NoSquare
+	ca.helpActive = false
+	ca.assistantThreats = nil
+	ca.assistantKingCheck = false
+	ca.safeHints = nil
+	ca.riskyHints = nil
+	if ca.warnContainer != nil {
+		ca.warnContainer.Hide()
+	}
+	if ca.boardContainer != nil {
+		ca.boardContainer.Refresh()
+	}
+	ca.mu.Unlock()
+
+	// Play animations and restore board state without holding the lock
 	for _, snap := range snapsToReverse {
 		if snap.lastMove != nil && ca.animate.Load() {
-			ca.mu.Unlock()
 			ca.playReverseAnimation(snap.lastMove, snap.fen)
-			ca.mu.Lock()
 		}
+		ca.mu.Lock()
 		fenFunc, _ := chess.FEN(snap.fen)
 		ca.game = chess.NewGame(fenFunc)
+		ca.mu.Unlock()
 		ca.refreshBoard()
 	}
 
-	// Restart game loop
+	ca.mu.Lock()
 	ca.running.Store(true)
 	ca.stopCh = make(chan struct{})
 	ca.statusLabel.SetText("")
 	ca.mu.Unlock()
 
 	ca.showLoadingOverlay("Initializing Stockfish Engine...")
-	
-	// Spawn new engine processes
+
+	// spawn new engine processes lol
 	go func() {
 		var wEng, bEng, aEng *StockfishEngine
 		if !ca.lastWIsHuman {
@@ -1291,15 +1317,15 @@ func (ca *ChessApp) handleReverse() {
 		if ca.lastWIsHuman || ca.lastBIsHuman {
 			aEng, _ = NewEngine("stockfish", 5, 2, 500, 15, func(l string) {})
 		}
-		
+
 		ca.mu.Lock()
 		ca.whiteEngine = wEng
 		ca.blackEngine = bEng
 		ca.assistantEngine = aEng
 		ca.mu.Unlock()
-		
+
 		ca.hideLoadingOverlay()
-		
+
 		if aEng != nil {
 			go ca.assistantLoop()
 		}
@@ -1424,11 +1450,13 @@ func (ca *ChessApp) showNewGameWindow() {
 		ca.speedrun.Store(speedrunCheck.Checked)
 		ca.animate.Store(animCheck.Checked)
 		ca.autoLoop.Store(autoLoopCheck.Checked)
+		w.Hide()
 		w.Close()
 		go ca.startGame(wSkill, bSkill, ca.lastWIsHuman, ca.lastBIsHuman)
 	})
 
 	cancelBtn := widget.NewButton("Cancel", func() {
+		w.Hide()
 		w.Close()
 	})
 
@@ -1546,6 +1574,7 @@ func (ca *ChessApp) startGame(whiteSkillLevel, blackSkillLevel int, wIsHuman, bI
 			ca.statusLabel.SetText(fmt.Sprintf("Assistant Error: %v", err))
 		}
 	}
+	// why the hell is this function so long, clean code my ass pls
 
 	ca.mu.Lock()
 	ca.whiteEngine = whiteEng
@@ -1617,7 +1646,7 @@ func (ca *ChessApp) gameLoop() {
 				return
 			}
 
-			if m == nil { // PASS logic
+			if m == nil { // pass logic
 				ca.mu.Lock()
 				parts := strings.Fields(fen)
 				if len(parts) >= 2 {
@@ -1695,20 +1724,25 @@ func (ca *ChessApp) gameLoop() {
 
 func (ca *ChessApp) showPromotionPopup(promoMoves []*chess.Move) {
 	var popup *widget.PopUp
-	
+
 	vbox := container.NewVBox(widget.NewLabelWithStyle("Promote Pawn", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}))
-	
+
 	for _, m := range promoMoves {
-		move := m // capture for closure
+		move := m // capture
 		var name string
 		switch move.Promo() {
-		case chess.Queen: name = "Queen"
-		case chess.Rook: name = "Rook"
-		case chess.Bishop: name = "Bishop"
-		case chess.Knight: name = "Knight"
-		default: name = "Piece"
+		case chess.Queen:
+			name = "Queen"
+		case chess.Rook:
+			name = "Rook"
+		case chess.Bishop:
+			name = "Bishop"
+		case chess.Knight:
+			name = "Knight"
+		default:
+			name = "Piece"
 		}
-		
+
 		btn := widget.NewButton(name, func() {
 			popup.Hide()
 			select {
@@ -1718,11 +1752,10 @@ func (ca *ChessApp) showPromotionPopup(promoMoves []*chess.Move) {
 		})
 		vbox.Add(btn)
 	}
-	
+
 	popup = widget.NewModalPopUp(container.NewPadded(vbox), ca.window.Canvas())
 	popup.Show()
 }
-
 
 func (ca *ChessApp) showMoveHints(sq chess.Square) {
 	ca.mu.Lock()
@@ -1736,7 +1769,7 @@ func (ca *ChessApp) showMoveHints(sq chess.Square) {
 		if m.S1() == sq {
 			clone := ca.game.Clone()
 			_ = clone.Move(m)
-			
+
 			oppMoves := clone.ValidMoves()
 			isRisky := false
 			for _, oppM := range oppMoves {
@@ -1745,7 +1778,7 @@ func (ca *ChessApp) showMoveHints(sq chess.Square) {
 					break
 				}
 			}
-			
+
 			if isRisky {
 				riskyHints[m.S2()] = true
 			} else {
@@ -1840,7 +1873,6 @@ func (ca *ChessApp) hideLoadingOverlay() {
 		ca.loadingOverlayContainer.Refresh()
 	}
 }
-
 
 func (ca *ChessApp) toggleAutoHelp() {
 	if ca.autoHelpActive.Load() {
@@ -1969,9 +2001,11 @@ func (ca *ChessApp) autoHelpLoop() {
 				}
 			}
 			ca.mu.Unlock()
-			lastFen = "" // Reset so it calculates immediately when it's our turn again
+			lastFen = "" // reset so it calculates immediately when it's our turn again
 		}
-		
+
 		time.Sleep(500 * time.Millisecond)
 	}
 }
+
+// why's this code so long

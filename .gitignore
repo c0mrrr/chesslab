@@ -1,6 +1,6 @@
 # Compiled binary
 chesslab
-
+chesslab-linux-x86_64
 # IDE configurations
 .vscode/
 .idea/
